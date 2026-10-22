@@ -19,7 +19,13 @@
   let settings = read('settings', { title: 'MOB', teamID: '', type: 'LabProject', description: '' });
   let templates = read('templates', {});
   if (!templates || typeof templates !== 'object' || Array.isArray(templates)) templates = {};
-  function loadWeek() { const draft = read(`week.${week}`, null); rows = Array.isArray(draft) ? draft.map(r => ({ ...r, result: '' })) : C.expand(C.defaults, week); }
+  function availableTemplates() {
+    return [
+      ...(templates.__default === null ? [] : [{ key: '__default', name: '我的固定 10 小時' }]),
+      ...Object.keys(templates).filter(key => key !== '__default').map(key => ({ key, name: key }))
+    ];
+  }
+  function loadWeek() { const draft = read(`week.${week}`, null); rows = Array.isArray(draft) ? draft.map(r => ({ ...r, result: '' })) : C.expand(templates.__default === null ? [] : C.defaults, week); }
   loadWeek();
   const style = document.createElement('style');
   style.textContent = `
@@ -90,7 +96,7 @@
       ${prominentMessage && message ? `<div class="note ${message.startsWith('錯誤') ? 'error' : ''}" role="status" aria-live="polite">${esc(message)}</div>` : ''}
       ${review ? `<section class="review" aria-label="送出前預覽"><h2>確認這次要填寫的紀錄</h2><p>${esc(settings.title)} ／ ${esc(team?.teamName)} ／ ${esc(settings.type)}${settings.description ? ` ／ 備註：${esc(settings.description)}` : ''}</p><ul>${review.map(r => `<li class="${r.ready ? '' : 'skip'}">${esc(r.date)} ${esc(weekday(r.date))} ${r.start}–${r.end}　${r.ready ? '可送出' : '略過：' + esc(r.reason)}</li>`).join('')}</ul><p>將新增 ${ready.length} 筆，共 ${hours(ready)} 小時。送出時會再次查核現有紀錄。</p></section>` : `
       <section class="schedule" aria-label="時段選擇"><div class="schedule-head"><div><h2>勾選實際出勤時段</h2><p class="hint">可點勾選區或整列空白處切換。</p></div><button data-action="add">＋ 自訂時段</button></div>
-      <div class="toolbar"><button data-action="all">勾選可填時段</button><button data-action="none">全部取消</button><span class="spacer"></span><select id="template" aria-label="選擇範本"><option value="">套用範本…</option><option value="__default">我的固定 10 小時</option>${Object.keys(templates).map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}</select></div>
+      <div class="toolbar"><button data-action="all">勾選可填時段</button><button data-action="none">全部取消</button><span class="spacer"></span><select id="template" aria-label="選擇範本"><option value="">套用範本…</option>${availableTemplates().map(t => `<option value="${esc(t.key)}">${esc(t.name)}</option>`).join('')}</select></div>
       <div class="leave"><span class="hint">整天請假，取消勾選：</span>${[1,2,3,4,5,6,0].map(day => `<button data-action="leave" data-day="${day}" ${scheduledDays.includes(day) ? '' : 'hidden'}>週${'日一二三四五六'[day]}</button>`).join('')}</div>
       <div class="sheet"><table aria-label="每週出勤時段"><thead><tr><th scope="col">勾選填寫</th><th scope="col">日期</th><th scope="col">開始</th><th scope="col">結束</th><th scope="col">時數／狀態</th><th scope="col"><span class="hint">移除</span></th></tr></thead><tbody>${rows.map(r => {
         const invalid = C.validate(r, week); const done = r.result === '已送出並確認';
@@ -98,7 +104,7 @@
       }).join('')}</tbody></table></div>
       ${rows.length ? '' : '<p class="note">這週還沒有時段，可套用固定範本或新增自訂時段。</p>'}
       <p class="hint time-rule">今天可提前填，明天以後不可填。12:00 是中午；13:00 是下午 1 點。請假勾選只影響這一週。</p>
-      <details id="templateTools" class="template-tools" ${templateOpen ? 'open' : ''}><summary>套用或管理時程範本</summary><div class="template-body"><input id="templateName" placeholder="新範本名稱" aria-label="新範本名稱" maxlength="40"><button data-action="saveTemplate">儲存時程為範本</button><p class="hint">儲存上方所有時段，不包含當週的請假勾選。</p><div class="template-manager"><label class="field">刪除自訂範本<select id="templateToDelete" ${Object.keys(templates).length ? '' : 'disabled'}><option value="">${Object.keys(templates).length ? '選擇要刪除的範本…' : '目前沒有自訂範本'}</option>${Object.keys(templates).map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}</select></label><button class="delete-template" data-action="deleteTemplate" disabled>刪除範本</button><p class="hint">只刪除選定範本，當週時段與草稿會保留。內建「我的固定 10 小時」無法刪除。</p></div>${deletedTemplate ? `<div class="template-undo" role="status"><span>已刪除「${esc(deletedTemplate.name)}」</span><button data-action="undoDeleteTemplate">復原刪除</button></div>` : ''}</div></details></section>`}
+      <details id="templateTools" class="template-tools" ${templateOpen ? 'open' : ''}><summary>套用或管理時程範本</summary><div class="template-body"><input id="templateName" placeholder="新範本名稱" aria-label="新範本名稱" maxlength="40"><button data-action="saveTemplate">儲存時程為範本</button><p class="hint">儲存上方所有時段，不包含當週的請假勾選。</p><div class="template-manager"><label class="field">選擇要刪除的範本<select id="templateToDelete" ${availableTemplates().length ? '' : 'disabled'}><option value="">${availableTemplates().length ? '選擇要刪除的範本…' : '目前沒有範本'}</option>${availableTemplates().map(t => `<option value="${esc(t.key)}">${esc(t.name)}</option>`).join('')}</select></label><button class="delete-template" data-action="deleteTemplate" disabled>刪除範本</button><p class="hint">包含「我的固定 10 小時」在內，所有範本都能刪除。只刪除選定範本，現有時段與草稿會保留。</p></div>${deletedTemplate ? `<div class="template-undo" role="status"><span>已刪除「${esc(deletedTemplate.name)}」</span><button data-action="undoDeleteTemplate">復原刪除</button></div>` : ''}</div></details></section>`}
       ${!prominentMessage && (message || storageWarning) ? `<div class="note" role="status" aria-live="polite">${esc(message || storageWarning)}</div>` : ''}
       </main><footer><div><span class="total">${hours(review ? ready : selected)} <small>小時</small></span><span class="count">${review ? '將新增' : '已勾選'} ${review ? ready.length : selected.length} 筆</span></div><div class="actions">${review ? `<button data-action="back">返回修改</button><button class="primary" data-action="submit" ${!ready.length ? 'disabled' : ''}>${busy ? '處理中…' : `確認送出 ${ready.length} 筆`}</button>` : `<button data-action="reload">重新連線</button><button class="primary" data-action="review" ${!loaded || !selected.length || !settings.title?.trim() || !settings.teamID || !settings.type ? 'disabled' : ''}>${busy ? '處理中…' : '檢查紀錄並預覽'}</button>`}</div></footer>`;
     positionTemplatePicker();
@@ -154,7 +160,7 @@
     if (busy) return;
     const el = event.target; const tr = el.closest('[data-id]');
     if (el.id === 'templateToDelete') {
-      dialog.querySelector('[data-action="deleteTemplate"]').disabled = !el.value || el.value === '__default' || !Object.hasOwn(templates, el.value);
+      dialog.querySelector('[data-action="deleteTemplate"]').disabled = !availableTemplates().some(t => t.key === el.value);
       return;
     }
     if (tr && el.dataset.field) {
@@ -167,6 +173,7 @@
     } else if (el.id === 'team') { settings.teamID = el.value; settings.type = typeList().find(t => t.name === 'LabProject')?.name ?? ''; }
     else if (['title', 'type', 'description'].includes(el.id)) settings[el.id] = el.value;
     else if (el.id === 'template' && el.value) {
+      if (!availableTemplates().some(t => t.key === el.value)) return;
       try { rows = C.expand(C.template(el.value === '__default' ? C.defaults : templates[el.value]), week); message = '已套用範本，請依這週實際出勤勾選。'; } catch (error) { message = '錯誤：' + error.message; }
     } else return;
     const keepMounted = !dialog.querySelector('.review') && ((tr && el.dataset.field !== 'selected') || ['title', 'description'].includes(el.id));
@@ -194,23 +201,28 @@
     if (action === 'saveTemplate') {
       const name = dialog.querySelector('#templateName').value.trim();
       if (!name || name === '__default') { message = '請輸入新範本名稱。'; render(); return; }
-      try { const slots = C.template(rows.map(r => ({ day: new Date(r.date + 'T00:00:00Z').getUTCDay(), start: r.start, end: r.end }))); templates = { ...templates, [name]: slots }; write('templates', templates); if (deletedTemplate?.name === name) deletedTemplate = null; message = `已儲存「${name}」，包含所有列出的固定時段。`; } catch (error) { message = '錯誤：' + error.message; }
+      try { const slots = C.template(rows.map(r => ({ day: new Date(r.date + 'T00:00:00Z').getUTCDay(), start: r.start, end: r.end }))); templates = { ...templates, [name]: slots }; write('templates', templates); if (deletedTemplate?.key === name) deletedTemplate = null; message = `已儲存「${name}」，包含所有列出的固定時段。`; } catch (error) { message = '錯誤：' + error.message; }
     }
     if (action === 'deleteTemplate') {
-      const name = dialog.querySelector('#templateToDelete').value;
-      if (!name || name === '__default' || !Object.hasOwn(templates, name)) return;
+      const key = dialog.querySelector('#templateToDelete').value;
+      const target = availableTemplates().find(t => t.key === key);
+      if (!target) return;
       const remaining = { ...templates };
-      delete remaining[name];
+      // Persist a tombstone so bundled defaults do not reappear after reload.
+      if (key === '__default') remaining.__default = null;
+      else delete remaining[key];
       if (write('templates', remaining)) {
-        deletedTemplate = { name, slots: templates[name] };
+        deletedTemplate = { key, name: target.name, slots: templates[key] };
         templates = remaining;
-        message = `已刪除「${name}」，當週時段與草稿已保留。`;
+        message = `已刪除「${target.name}」，當週時段與草稿已保留。`;
       } else message = '錯誤：無法儲存刪除結果，範本未刪除。';
       render(); return;
     }
     if (action === 'undoDeleteTemplate') {
-      if (!deletedTemplate || Object.hasOwn(templates, deletedTemplate.name)) return;
-      const restored = { ...templates, [deletedTemplate.name]: deletedTemplate.slots };
+      if (!deletedTemplate || availableTemplates().some(t => t.key === deletedTemplate.key)) return;
+      const restored = { ...templates };
+      if (deletedTemplate.key === '__default') delete restored.__default;
+      else restored[deletedTemplate.key] = deletedTemplate.slots;
       if (write('templates', restored)) {
         message = `已復原「${deletedTemplate.name}」。`;
         templates = restored;
