@@ -13,9 +13,9 @@
   const namespace = () => `autolog.v1.${uid() || 'guest'}`;
   function read(key, fallback) { try { return JSON.parse(localStorage.getItem(`${namespace()}.${key}`)) ?? fallback; } catch { return fallback; } }
   let storageWarning = '';
-  function write(key, value) { try { localStorage.setItem(`${namespace()}.${key}`, JSON.stringify(value)); } catch { storageWarning = '瀏覽器無法儲存設定，關閉後可能遺失。'; } }
+  function write(key, value) { try { localStorage.setItem(`${namespace()}.${key}`, JSON.stringify(value)); return true; } catch { storageWarning = '瀏覽器無法儲存設定，關閉後可能遺失。'; return false; } }
   let week = C.monday(C.today()), rows = [], teams = [], units = [], review = null, busy = false, message = '', loaded = false;
-  let owner = uid(), settingsOpen = false, templateOpen = false;
+  let owner = uid(), settingsOpen = false, templateOpen = false, deletedTemplate = null;
   let settings = read('settings', { title: 'MOB', teamID: '', type: 'LabProject', description: '' });
   let templates = read('templates', {});
   if (!templates || typeof templates !== 'object' || Array.isArray(templates)) templates = {};
@@ -37,6 +37,7 @@
     .schedule-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}.toolbar button,.toolbar select{font-size:13px}.toolbar select{max-width:240px}.toolbar .spacer{flex:1}.leave{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px}.leave button{font-size:13px;padding:7px 12px}.leave .hint{margin-right:4px}.sheet{background:white;border:1px solid #d7e3e7;border-radius:9px;overflow:hidden;min-height:0}
     table{border-collapse:collapse;width:100%;font-size:14px}th{text-align:left;font-weight:500;font-size:12px;color:#526d77;background:#eaf2f5;padding:9px 12px}td{padding:8px 12px;border-top:1px solid #e3ecef;vertical-align:middle}tbody tr{cursor:pointer}tbody tr:hover{background:#edf8f8}tbody tr.selected{background:#f1faf9}tbody tr.off{background:#fafcfd;color:#667d86}.select-cell{width:115px;padding:6px 10px}.row-select{display:flex;align-items:center;gap:10px;min-height:48px;cursor:pointer;font-size:13px;font-weight:650}.row-select:has(input:disabled){cursor:default}.row-select input{accent-color:#087c89;width:22px;height:22px;min-height:22px;flex-shrink:0;cursor:inherit;margin:0}.date-cell{width:230px;white-space:nowrap}.day{font-size:12px;color:#526d77;margin-left:8px;display:inline-block}td input[data-field=start],td input[data-field=end]{width:92px;padding:8px;font-variant-numeric:tabular-nums}td input[type=date]{width:148px;padding:7px}.mobile-label{display:none}.state{font-size:13px;color:#526d77;max-width:210px;overflow-wrap:anywhere}.state.bad{color:#a34a25}.state.good{color:#087c62}.remove{border:0;min-width:44px;padding:6px 10px;background:transparent;color:#526d77;font-size:20px}.remove-cell{width:54px;padding:6px}.time-rule{margin-top:12px}.template-tools{margin-top:14px}.template-body{padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap}.template-body input{flex:1;min-width:140px}.template-body .hint{width:100%}
     .note{padding:11px 14px;background:#e5f2f5;border-left:3px solid #128f9d;font-size:13px;white-space:pre-line;overflow-wrap:anywhere}.note:empty{display:none}.error{border-color:#bb682f;background:#fff3e8;color:#88431e}
+    .template-manager{width:100%;border-top:1px solid #d7e3e7;padding-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:end}.template-manager label{flex:1;min-width:160px}.template-manager select{width:100%}.delete-template{color:#a34a25;border-color:#d7ac99}.template-undo{width:100%;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;overflow-wrap:anywhere}
     footer{padding:14px 26px;display:flex;justify-content:space-between;align-items:center;gap:14px;background:white;border-top:1px solid #d7e3e7;flex-shrink:0}.total{font-size:26px;font-weight:750;color:#087c89}.total small{font-size:13px;font-weight:400;color:#526d77}.primary{background:#087c89;color:white;border-color:#087c89;font-weight:650}.primary:hover:not(:disabled){background:#086774}.actions{display:flex;gap:8px}.review{border:1px solid #128f9d;border-radius:8px;padding:18px;background:white}.review ul{padding-left:22px;margin:14px 0}.review li{padding:8px 0;border-bottom:1px solid #e3ecef;font-variant-numeric:tabular-nums}.review .skip{color:#a34a25}.review p{font-size:13px;margin-top:7px}.count{margin-left:10px;font-size:13px;color:#526d77}
     @media(min-width:981px){.schedule{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px 16px}.schedule-head{grid-column:1;margin:0}.schedule-head .hint{display:none}.toolbar{grid-column:2;margin:0;justify-content:flex-end}.toolbar .spacer{display:none}.toolbar select{max-width:170px}.leave,.sheet,.time-rule,.template-tools,.schedule>.note{grid-column:1/-1;margin:0}}
     @media(min-width:721px) and (max-width:980px){.date-cell{width:170px}.day{display:block;margin:3px 0 0}.select-cell{width:105px}td,th{padding-left:8px;padding-right:8px}.settings{grid-template-columns:1fr 1fr}.description{grid-column:1/-1}}
@@ -97,7 +98,7 @@
       }).join('')}</tbody></table></div>
       ${rows.length ? '' : '<p class="note">這週還沒有時段，可套用固定範本或新增自訂時段。</p>'}
       <p class="hint time-rule">今天可提前填，明天以後不可填。12:00 是中午；13:00 是下午 1 點。請假勾選只影響這一週。</p>
-      <details id="templateTools" class="template-tools" ${templateOpen ? 'open' : ''}><summary>套用或儲存時程範本</summary><div class="template-body"><input id="templateName" placeholder="新範本名稱" aria-label="新範本名稱" maxlength="40"><button data-action="saveTemplate">儲存時程為範本</button><p class="hint">儲存上方所有時段，不包含當週的請假勾選。</p></div></details></section>`}
+      <details id="templateTools" class="template-tools" ${templateOpen ? 'open' : ''}><summary>套用或管理時程範本</summary><div class="template-body"><input id="templateName" placeholder="新範本名稱" aria-label="新範本名稱" maxlength="40"><button data-action="saveTemplate">儲存時程為範本</button><p class="hint">儲存上方所有時段，不包含當週的請假勾選。</p><div class="template-manager"><label class="field">刪除自訂範本<select id="templateToDelete" ${Object.keys(templates).length ? '' : 'disabled'}><option value="">${Object.keys(templates).length ? '選擇要刪除的範本…' : '目前沒有自訂範本'}</option>${Object.keys(templates).map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}</select></label><button class="delete-template" data-action="deleteTemplate" disabled>刪除範本</button><p class="hint">只刪除選定範本，當週時段與草稿會保留。內建「我的固定 10 小時」無法刪除。</p></div>${deletedTemplate ? `<div class="template-undo" role="status"><span>已刪除「${esc(deletedTemplate.name)}」</span><button data-action="undoDeleteTemplate">復原刪除</button></div>` : ''}</div></details></section>`}
       ${!prominentMessage && (message || storageWarning) ? `<div class="note" role="status" aria-live="polite">${esc(message || storageWarning)}</div>` : ''}
       </main><footer><div><span class="total">${hours(review ? ready : selected)} <small>小時</small></span><span class="count">${review ? '將新增' : '已勾選'} ${review ? ready.length : selected.length} 筆</span></div><div class="actions">${review ? `<button data-action="back">返回修改</button><button class="primary" data-action="submit" ${!ready.length ? 'disabled' : ''}>${busy ? '處理中…' : `確認送出 ${ready.length} 筆`}</button>` : `<button data-action="reload">重新連線</button><button class="primary" data-action="review" ${!loaded || !selected.length || !settings.title?.trim() || !settings.teamID || !settings.type ? 'disabled' : ''}>${busy ? '處理中…' : '檢查紀錄並預覽'}</button>`}</div></footer>`;
     positionTemplatePicker();
@@ -147,11 +148,15 @@
     } catch (error) { loaded = false; message = '錯誤：' + error.message; }
     finally { busy = false; render(); }
   }
-  launch.onclick = () => { owner = uid(); settings = read('settings', { title: 'MOB', teamID: '', type: 'LabProject', description: '' }); templates = read('templates', {}); loadWeek(); review = null; dialog.showModal(); connect(); };
+  launch.onclick = () => { owner = uid(); deletedTemplate = null; settings = read('settings', { title: 'MOB', teamID: '', type: 'LabProject', description: '' }); templates = read('templates', {}); loadWeek(); review = null; dialog.showModal(); connect(); };
   dialog.addEventListener('cancel', e => { if (busy) e.preventDefault(); });
   dialog.addEventListener('change', event => {
     if (busy) return;
     const el = event.target; const tr = el.closest('[data-id]');
+    if (el.id === 'templateToDelete') {
+      dialog.querySelector('[data-action="deleteTemplate"]').disabled = !el.value || el.value === '__default' || !Object.hasOwn(templates, el.value);
+      return;
+    }
     if (tr && el.dataset.field) {
       const row = rows.find(r => r.id === tr.dataset.id);
       row[el.dataset.field] = el.dataset.field === 'selected' ? el.checked : el.value; row.result = '';
@@ -189,7 +194,29 @@
     if (action === 'saveTemplate') {
       const name = dialog.querySelector('#templateName').value.trim();
       if (!name || name === '__default') { message = '請輸入新範本名稱。'; render(); return; }
-      try { const slots = C.template(rows.map(r => ({ day: new Date(r.date + 'T00:00:00Z').getUTCDay(), start: r.start, end: r.end }))); templates = { ...templates, [name]: slots }; write('templates', templates); message = `已儲存「${name}」，包含所有列出的固定時段。`; } catch (error) { message = '錯誤：' + error.message; }
+      try { const slots = C.template(rows.map(r => ({ day: new Date(r.date + 'T00:00:00Z').getUTCDay(), start: r.start, end: r.end }))); templates = { ...templates, [name]: slots }; write('templates', templates); if (deletedTemplate?.name === name) deletedTemplate = null; message = `已儲存「${name}」，包含所有列出的固定時段。`; } catch (error) { message = '錯誤：' + error.message; }
+    }
+    if (action === 'deleteTemplate') {
+      const name = dialog.querySelector('#templateToDelete').value;
+      if (!name || name === '__default' || !Object.hasOwn(templates, name)) return;
+      const remaining = { ...templates };
+      delete remaining[name];
+      if (write('templates', remaining)) {
+        deletedTemplate = { name, slots: templates[name] };
+        templates = remaining;
+        message = `已刪除「${name}」，當週時段與草稿已保留。`;
+      } else message = '錯誤：無法儲存刪除結果，範本未刪除。';
+      render(); return;
+    }
+    if (action === 'undoDeleteTemplate') {
+      if (!deletedTemplate || Object.hasOwn(templates, deletedTemplate.name)) return;
+      const restored = { ...templates, [deletedTemplate.name]: deletedTemplate.slots };
+      if (write('templates', restored)) {
+        message = `已復原「${deletedTemplate.name}」。`;
+        templates = restored;
+        deletedTemplate = null;
+      } else message = '錯誤：無法儲存復原結果，請再試一次。';
+      render(); return;
     }
     if (action === 'back') { review = null; render(); return; }
     if (action === 'review') {
