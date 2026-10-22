@@ -1,0 +1,5 @@
+research/
+.playwright-mcp/
+dist/
+node_modules/
+.test-browser/

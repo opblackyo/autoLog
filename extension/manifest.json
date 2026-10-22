@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "AutoLog 上班時段快填",
+  "version": "1.0.1",
+  "description": "選週次、排除請假、檢查重複後批次填寫學校 Time Log。",
+  "permissions": [],
+  "host_permissions": ["http://140.124.181.95/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{
+    "matches": ["http://140.124.181.95/*"],
+    "js": ["core.js", "content.js"],
+    "run_at": "document_idle"
+  }]
+}
