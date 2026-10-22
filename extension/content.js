@@ -15,7 +15,7 @@
   let storageWarning = '';
   function write(key, value) { try { localStorage.setItem(`${namespace()}.${key}`, JSON.stringify(value)); } catch { storageWarning = '瀏覽器無法儲存設定，關閉後可能遺失。'; } }
   let week = C.monday(C.today()), rows = [], teams = [], units = [], review = null, busy = false, message = '', loaded = false;
-  let owner = uid();
+  let owner = uid(), settingsOpen = false, templateOpen = false;
   let settings = read('settings', { title: 'MOB', teamID: '', type: 'LabProject', description: '' });
   let templates = read('templates', {});
   if (!templates || typeof templates !== 'object' || Array.isArray(templates)) templates = {};
@@ -24,28 +24,39 @@
   const style = document.createElement('style');
   style.textContent = `
     :host{all:initial;font-family:"Microsoft JhengHei","Segoe UI",sans-serif;color:#23383e;font-size:15px;line-height:1.5}
-    *{box-sizing:border-box}button,input,select{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}
-    button,input,select{border:1px solid #bbcdd2;border-radius:6px;padding:9px 12px;background:white;color:#23383e}
-    button:hover:not(:disabled){background:#e6f4f5}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #0797a8;outline-offset:2px}
+    *{box-sizing:border-box}button,input,select{font:inherit}button,summary{cursor:pointer}button:disabled{cursor:default;opacity:.5}
+    button,input,select{border:1px solid #bbcdd2;border-radius:7px;padding:9px 12px;background:white;color:#23383e;min-height:44px}
+    button:hover:not(:disabled){background:#e6f4f5}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #0797a8;outline-offset:2px}
     .launch{position:fixed;right:26px;bottom:26px;z-index:2147483646;background:#087c89;color:white;border:0;box-shadow:0 4px 20px #183c4540;padding:14px 22px;font-weight:700}
-    dialog{border:0;border-radius:14px;padding:0;width:min(1040px,calc(100vw - 32px));max-height:90vh;color:inherit;background:#f3f8fa;box-shadow:0 20px 100px #17353d55}
-    dialog[open]{display:flex;flex-direction:column}dialog::backdrop{background:#162d3a80}header{padding:25px 30px 20px;background:white;border-bottom:1px solid #d7e3e7;display:flex;justify-content:space-between;gap:20px;align-items:start;flex-shrink:0}
-    h1{font-size:25px;margin:0 0 4px;font-weight:750}h2{font-size:19px;margin:0 0 10px}p{margin:0}.sub,.hint{color:#526d77;font-size:13px}.x{font-size:22px;line-height:1;padding:8px 12px;border:0}
-    main{padding:22px 30px;display:grid;gap:18px;overflow:auto;min-height:0}.week{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.week strong{font-size:18px;margin-right:auto}.week input{max-width:155px}
-    .settings{display:grid;grid-template-columns:1fr 2fr 1.2fr;gap:12px}label.field{display:grid;gap:5px;font-size:13px;color:#526d77}.field input,.field select{min-width:0;width:100%;color:#23383e}.description{grid-column:1/-1}
-    .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.toolbar button,.toolbar select{padding:7px 10px;font-size:13px}.toolbar .spacer{flex:1}.sheet{background:white;border:1px solid #d7e3e7;border-radius:9px;overflow:auto}
-    table{border-collapse:collapse;width:100%;min-width:660px;font-size:14px}th{text-align:left;font-weight:500;font-size:12px;color:#526d77;background:#eaf2f5;padding:10px 12px}td{padding:11px 12px;border-top:1px solid #e3ecef;vertical-align:middle}
-    td input[data-field=start],td input[data-field=end]{width:92px;padding:6px;font-variant-numeric:tabular-nums}td input[type=date]{width:142px;padding:6px}input[type=checkbox]{accent-color:#087c89;width:19px;height:19px;cursor:pointer;vertical-align:middle}.day{display:block;font-size:12px;color:#526d77;margin-top:3px}
-    tr.off{background:#f8fafb;color:#788991}.state{font-size:12px;color:#526d77;max-width:210px}.state.bad{color:#a34a25}.state.good{color:#087c62}.remove{border:0;padding:4px 9px;background:transparent;color:#526d77}
+    dialog{border:0;border-radius:14px;padding:0;margin:auto;width:min(1080px,calc(100vw - 32px));max-width:none;max-height:94dvh;color:inherit;font:inherit;background:#f3f8fa;box-shadow:0 20px 100px #17353d55;overflow:hidden}
+    dialog[open]{display:flex;flex-direction:column}dialog::backdrop{background:#162d3a80}header{padding:19px 26px 16px;background:white;border-bottom:1px solid #d7e3e7;display:flex;justify-content:space-between;gap:16px;align-items:start;flex-shrink:0}
+    h1{font-size:22px;margin:0 0 3px;font-weight:750}h2{font-size:17px;margin:0}p{margin:0}.sub,.hint{color:#526d77;font-size:13px}.x{font-size:24px;line-height:1;padding:8px 12px;border:0;min-width:44px}
+    main{padding:18px 26px;display:block;overflow-y:auto;overflow-x:hidden;min-height:0;scrollbar-gutter:stable}main>*+*{margin-top:16px}
+    .week{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.week strong{font-size:19px;margin-right:auto}.week-controls{display:flex;gap:6px;align-items:center}.week input{width:151px}.week .nav{font-size:22px;padding:3px 12px}.week-label{font-size:13px;color:#526d77}
+    details{border:1px solid #d7e3e7;border-radius:8px;background:white}summary{padding:12px 14px;min-height:48px;font-size:14px;overflow-wrap:anywhere}summary .summary-value{margin-left:12px;font-weight:600}summary .edit-hint{float:right;color:#087c89;font-size:13px;margin-left:10px}.settings{padding:0 14px 16px;display:grid;grid-template-columns:1fr 2fr 1.2fr;gap:12px}label.field{display:grid;gap:5px;font-size:13px;color:#526d77}.field input,.field select{min-width:0;width:100%;color:#23383e}.description{grid-column:1/-1}
+    .schedule-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}.toolbar button,.toolbar select{font-size:13px}.toolbar select{max-width:240px}.toolbar .spacer{flex:1}.leave{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px}.leave button{font-size:13px;padding:7px 12px}.leave .hint{margin-right:4px}.sheet{background:white;border:1px solid #d7e3e7;border-radius:9px;overflow:hidden;min-height:0}
+    table{border-collapse:collapse;width:100%;font-size:14px}th{text-align:left;font-weight:500;font-size:12px;color:#526d77;background:#eaf2f5;padding:9px 12px}td{padding:8px 12px;border-top:1px solid #e3ecef;vertical-align:middle}tbody tr{cursor:pointer}tbody tr:hover{background:#edf8f8}tbody tr.selected{background:#f1faf9}tbody tr.off{background:#fafcfd;color:#667d86}.select-cell{width:115px;padding:6px 10px}.row-select{display:flex;align-items:center;gap:10px;min-height:48px;cursor:pointer;font-size:13px;font-weight:650}.row-select:has(input:disabled){cursor:default}.row-select input{accent-color:#087c89;width:22px;height:22px;min-height:22px;flex-shrink:0;cursor:inherit;margin:0}.date-cell{width:230px;white-space:nowrap}.day{font-size:12px;color:#526d77;margin-left:8px;display:inline-block}td input[data-field=start],td input[data-field=end]{width:92px;padding:8px;font-variant-numeric:tabular-nums}td input[type=date]{width:148px;padding:7px}.mobile-label{display:none}.state{font-size:13px;color:#526d77;max-width:210px;overflow-wrap:anywhere}.state.bad{color:#a34a25}.state.good{color:#087c62}.remove{border:0;min-width:44px;padding:6px 10px;background:transparent;color:#526d77;font-size:20px}.remove-cell{width:54px;padding:6px}.time-rule{margin-top:12px}.template-tools{margin-top:14px}.template-body{padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap}.template-body input{flex:1;min-width:140px}.template-body .hint{width:100%}
     .note{padding:11px 14px;background:#e5f2f5;border-left:3px solid #128f9d;font-size:13px;white-space:pre-line;overflow-wrap:anywhere}.note:empty{display:none}.error{border-color:#bb682f;background:#fff3e8;color:#88431e}
-    footer{padding:18px 30px 23px;display:flex;justify-content:space-between;align-items:center;gap:14px;background:white;border-top:1px solid #d7e3e7;flex-wrap:wrap;flex-shrink:0}.total{font-size:24px;font-weight:750;color:#087c89}.total small{font-size:13px;font-weight:400;color:#526d77}.primary{background:#087c89;color:white;border-color:#087c89;font-weight:650}.primary:hover:not(:disabled){background:#086774}.actions{display:flex;gap:8px}.review{border:2px solid #128f9d;border-radius:8px;padding:16px;background:white}.review ul{padding-left:22px;margin:10px 0}.review li{margin:6px 0}.review .skip{color:#a34a25}.review p{font-size:13px}.review .actions{margin-top:14px;justify-content:flex-end}.count{margin-left:8px;font-size:13px;color:#526d77}
-    .leave{background:#f2f7f9}.template-name{max-width:130px;padding:7px 10px;font-size:13px}
-    @media(max-width:720px){header{padding:20px}main{padding:16px}footer{padding:16px 20px}.settings{grid-template-columns:1fr}.description{grid-column:auto}.week strong{width:100%}dialog{width:calc(100vw - 16px);max-height:95vh}.launch{right:14px;bottom:14px}}
+    footer{padding:14px 26px;display:flex;justify-content:space-between;align-items:center;gap:14px;background:white;border-top:1px solid #d7e3e7;flex-shrink:0}.total{font-size:26px;font-weight:750;color:#087c89}.total small{font-size:13px;font-weight:400;color:#526d77}.primary{background:#087c89;color:white;border-color:#087c89;font-weight:650}.primary:hover:not(:disabled){background:#086774}.actions{display:flex;gap:8px}.review{border:1px solid #128f9d;border-radius:8px;padding:18px;background:white}.review ul{padding-left:22px;margin:14px 0}.review li{padding:8px 0;border-bottom:1px solid #e3ecef;font-variant-numeric:tabular-nums}.review .skip{color:#a34a25}.review p{font-size:13px;margin-top:7px}.count{margin-left:10px;font-size:13px;color:#526d77}
+    @media(min-width:981px){.schedule{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px 16px}.schedule-head{grid-column:1;margin:0}.schedule-head .hint{display:none}.toolbar{grid-column:2;margin:0;justify-content:flex-end}.toolbar .spacer{display:none}.toolbar select{max-width:170px}.leave,.sheet,.time-rule,.template-tools,.schedule>.note{grid-column:1/-1;margin:0}}
+    @media(min-width:721px) and (max-width:980px){.date-cell{width:170px}.day{display:block;margin:3px 0 0}.select-cell{width:105px}td,th{padding-left:8px;padding-right:8px}.settings{grid-template-columns:1fr 1fr}.description{grid-column:1/-1}}
+    @media(max-width:720px){header{padding:16px}main{padding:14px}footer{padding:12px 16px;flex-wrap:wrap}.settings{grid-template-columns:1fr}.description{grid-column:auto}.week strong{width:100%}.week-controls{width:100%}.week input{width:145px}.week-label{display:none}dialog{width:calc(100vw - 16px);max-height:96dvh}.launch{right:14px;bottom:14px}summary .summary-value{display:block;margin:5px 0 0}summary .edit-hint{float:none;display:none}.toolbar .spacer{display:none}.toolbar select{max-width:100%;flex:1}.schedule-head{align-items:center}.schedule-head button{font-size:13px;padding:8px}.sheet{border:0;background:transparent;overflow:visible}table,tbody{display:block;width:100%}thead{display:none}tbody tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 14px;position:relative;border:1px solid #d7e3e7;border-radius:9px;padding:12px;margin-bottom:10px;background:white}td{border:0;padding:0;min-width:0}.select-cell{width:auto;grid-column:1/-1;padding:0 44px 0 0}.row-select{min-height:44px}.date-cell{width:auto;grid-column:1/-1;display:flex;gap:10px;align-items:center}.day{display:inline;margin:0}td input[type=date]{width:158px}.time-cell{display:grid;gap:4px}td input[data-field=start],td input[data-field=end]{width:100%;min-width:0}.mobile-label{display:block;font-size:12px;color:#526d77}.state{grid-column:1/-1;max-width:none}.remove-cell{position:absolute;right:6px;top:12px;width:44px}.actions{margin-left:auto}.total{font-size:24px}.count{margin-left:6px}footer .actions{flex-wrap:wrap;justify-content:flex-end}.leave{gap:6px}.leave .hint{width:100%}}
+    @media(max-width:720px){summary .summary-value{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.week-controls{display:grid;grid-template-columns:44px minmax(0,1fr) 44px auto;gap:4px}.week-controls label{min-width:0}.week-controls input{width:100%;min-width:0;padding:8px 4px}.week-controls .nav{padding:4px;min-width:44px}.week-controls button:last-child{padding:8px}.schedule-head .hint{display:none}}
+    @media(max-width:720px){.schedule{display:flex;flex-direction:column;gap:12px}.schedule-head,.toolbar,.leave,.sheet,.time-rule,.template-tools{margin:0}.schedule-head{order:0}.toolbar{order:1}.sheet{order:2}.leave{order:3}.time-rule{order:4}.template-tools{order:5}.schedule>.note{order:6}.template-body select{width:100%}}
+    @media(max-width:420px){h1{font-size:20px}footer{gap:8px}.actions{gap:6px}.actions button{font-size:13px;padding:8px 10px}.sub{font-size:12px}}
+    @media(max-height:600px){header{padding-top:12px;padding-bottom:10px}header .sub{display:none}footer{padding-top:10px;padding-bottom:10px}main{padding-top:12px;padding-bottom:12px}}
   `;
   root.append(style);
   const launch = document.createElement('button'); launch.className = 'launch'; launch.textContent = '▦ 快速填寫';
   const dialog = document.createElement('dialog'); dialog.setAttribute('aria-label', '每週上班時段快速填寫');
   root.append(launch, dialog);
+  const compactLayout = matchMedia('(max-width:720px)');
+  function positionTemplatePicker() {
+    const picker = dialog.querySelector('#template');
+    const destination = dialog.querySelector(compactLayout.matches ? '.template-body' : '.toolbar');
+    if (picker && destination && picker.parentElement !== destination) destination.append(picker);
+  }
+  compactLayout.addEventListener('change', positionTemplatePicker);
   async function call(op, extra = {}) {
     if (demo) return demo.call(op, { week, rows, settings, ...extra });
     if (uid() !== owner) throw new Error('登入帳號已變更，請重新整理網站');
@@ -60,24 +71,71 @@
   const hours = list => (list.reduce((sum, r) => sum + (C.minutes(r.end) - C.minutes(r.start)), 0) / 60).toLocaleString('zh-TW', { maximumFractionDigits: 2 });
   function render() {
     const previousScroll = dialog.querySelector('main')?.scrollTop || 0;
+    const previousReview = !!dialog.querySelector('.review');
+    const focus = root.activeElement;
+    const focusRow = focus?.closest('[data-id]')?.dataset.id;
+    const focusField = focus?.dataset.field;
+    if (dialog.querySelector('#preferences')) settingsOpen = dialog.querySelector('#preferences').open;
+    if (dialog.querySelector('#templateTools')) templateOpen = dialog.querySelector('#templateTools').open;
     const selected = rows.filter(r => r.selected && !C.validate(r, week));
     const team = teams.find(t => String(t.teamID) === String(settings.teamID));
+    const ready = review?.filter(r => r.ready) || [];
+    const scheduledDays = [1, 2, 3, 4, 5, 6, 0].filter(day => rows.some(r => new Date(r.date + 'T00:00:00Z').getUTCDay() === day));
+    const needsSettings = loaded && (!settings.title?.trim() || !team || !settings.type);
+    const prominentMessage = message.startsWith('錯誤') || message.startsWith('已確認') || busy;
     dialog.innerHTML = `<header><div><h1>這週的上班時段</h1><p class="sub">${demo ? '互動示範，所有資料都只在此頁模擬。' : '依實際出勤勾選，請假時段取消即可。'} 時間以台北、24 小時制顯示。</p></div><button class="x" data-action="close" aria-label="關閉" ${busy ? 'disabled' : ''}>×</button></header>
-      <main><div class="week"><strong>${esc(week.replaceAll('-', '/'))} — ${esc(C.addDays(week, 6).slice(5).replace('-', '/'))}</strong><button data-action="prev" aria-label="上一週">‹</button><label><span class="hint">選擇週次 </span><input aria-label="選擇週次" type="date" id="week" value="${week}"></label><button data-action="next" aria-label="下一週">›</button><button data-action="today">本週</button></div>
-      <div class="settings"><label class="field">標題<input id="title" value="${esc(settings.title)}" maxlength="150"></label><label class="field">Team 組別<select id="team"><option value="">請選擇組別</option>${teams.map(t => `<option value="${esc(t.teamID)}" ${String(t.teamID) === String(settings.teamID) ? 'selected' : ''}>${esc(t.teamName)}</option>`).join('')}</select></label><label class="field">Activity Type<select id="type"><option value="">請選擇類型</option>${typeList().map(a => `<option ${settings.type === a.name ? 'selected' : ''} value="${esc(a.name)}">${esc(a.name)}</option>`).join('')}</select></label><label class="field description">備註（選填，套用到這次勾選的時段）<input id="description" value="${esc(settings.description)}" maxlength="2000"></label></div>
-      <div class="toolbar"><select id="template" aria-label="選擇範本"><option value="">套用範本…</option><option value="__default">我的固定 10 小時</option>${Object.keys(templates).map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}</select><input class="template-name" id="templateName" placeholder="新範本名稱" aria-label="新範本名稱" maxlength="40"><button data-action="saveTemplate">儲存時程為範本</button><span class="spacer"></span><button data-action="all">勾選可填時段</button><button data-action="none">全部取消</button><button data-action="add">＋ 自訂時段</button></div>
-      <div class="toolbar leave"><span class="hint">整天請假，取消勾選：</span>${[1,2,3,4,5,6,0].map(day => `<button data-action="leave" data-day="${day}">週${'日一二三四五六'[day]}</button>`).join('')}</div>
-      <div class="sheet"><table><thead><tr><th>填寫</th><th>日期</th><th>開始</th><th>結束</th><th>時數／狀態</th><th></th></tr></thead><tbody>${rows.map(r => {
+      <main><div class="week"><strong>${esc(week.replaceAll('-', '/'))} — ${esc(C.addDays(week, 6).slice(5).replace('-', '/'))}</strong><div class="week-controls"><button class="nav" data-action="prev" aria-label="上一週">‹</button><label><span class="week-label">週次 </span><input aria-label="選擇週次" type="date" id="week" value="${week}"></label><button class="nav" data-action="next" aria-label="下一週">›</button><button data-action="today">本週</button></div></div>
+      <details id="preferences" ${settingsOpen || needsSettings ? 'open' : ''}><summary><span>填寫設定與備註</span><span class="edit-hint">展開修改</span><span class="summary-value">${esc(settings.title || '請填標題')} ／ ${esc(team?.teamName || '請選擇組別')} ／ ${esc(settings.type || '請選擇類型')}${settings.description ? '（含備註）' : ''}</span></summary><div class="settings"><label class="field">標題<input id="title" value="${esc(settings.title)}" maxlength="150"></label><label class="field">Team 組別<select id="team"><option value="">請選擇組別</option>${teams.map(t => `<option value="${esc(t.teamID)}" ${String(t.teamID) === String(settings.teamID) ? 'selected' : ''}>${esc(t.teamName)}</option>`).join('')}</select></label><label class="field">Activity Type<select id="type"><option value="">請選擇類型</option>${typeList().map(a => `<option ${settings.type === a.name ? 'selected' : ''} value="${esc(a.name)}">${esc(a.name)}</option>`).join('')}</select></label><label class="field description">備註（選填，套用到這次勾選的時段）<input id="description" value="${esc(settings.description)}" maxlength="2000"></label></div></details>
+      ${prominentMessage && message ? `<div class="note ${message.startsWith('錯誤') ? 'error' : ''}" role="status" aria-live="polite">${esc(message)}</div>` : ''}
+      ${review ? `<section class="review" aria-label="送出前預覽"><h2>確認這次要填寫的紀錄</h2><p>${esc(settings.title)} ／ ${esc(team?.teamName)} ／ ${esc(settings.type)}${settings.description ? ` ／ 備註：${esc(settings.description)}` : ''}</p><ul>${review.map(r => `<li class="${r.ready ? '' : 'skip'}">${esc(r.date)} ${esc(weekday(r.date))} ${r.start}–${r.end}　${r.ready ? '可送出' : '略過：' + esc(r.reason)}</li>`).join('')}</ul><p>將新增 ${ready.length} 筆，共 ${hours(ready)} 小時。送出時會再次查核現有紀錄。</p></section>` : `
+      <section class="schedule" aria-label="時段選擇"><div class="schedule-head"><div><h2>勾選實際出勤時段</h2><p class="hint">可點勾選區或整列空白處切換。</p></div><button data-action="add">＋ 自訂時段</button></div>
+      <div class="toolbar"><button data-action="all">勾選可填時段</button><button data-action="none">全部取消</button><span class="spacer"></span><select id="template" aria-label="選擇範本"><option value="">套用範本…</option><option value="__default">我的固定 10 小時</option>${Object.keys(templates).map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}</select></div>
+      <div class="leave"><span class="hint">整天請假，取消勾選：</span>${[1,2,3,4,5,6,0].map(day => `<button data-action="leave" data-day="${day}" ${scheduledDays.includes(day) ? '' : 'hidden'}>週${'日一二三四五六'[day]}</button>`).join('')}</div>
+      <div class="sheet"><table aria-label="每週出勤時段"><thead><tr><th scope="col">勾選填寫</th><th scope="col">日期</th><th scope="col">開始</th><th scope="col">結束</th><th scope="col">時數／狀態</th><th scope="col"><span class="hint">移除</span></th></tr></thead><tbody>${rows.map(r => {
         const invalid = C.validate(r, week); const done = r.result === '已送出並確認';
-        return `<tr class="${!r.selected ? 'off' : ''}" data-id="${esc(r.id)}"><td><input aria-label="選取 ${esc(r.date)} ${esc(r.start)}" data-field="selected" type="checkbox" ${r.selected ? 'checked' : ''} ${invalid || done ? 'disabled' : ''}></td><td><input aria-label="日期" data-field="date" type="date" min="${week}" max="${C.addDays(week, 6)}" value="${esc(r.date)}"><span class="day">${esc(weekday(r.date))}</span></td><td><input aria-label="開始時間" data-field="start" type="text" inputmode="numeric" placeholder="HH:mm" maxlength="5" value="${esc(r.start)}"></td><td><input aria-label="結束時間" data-field="end" type="text" inputmode="numeric" placeholder="HH:mm" maxlength="5" value="${esc(r.end)}"></td><td class="state ${r.result ? done ? 'good' : 'bad' : invalid ? 'bad' : ''}">${esc(r.result || invalid || `${hours([r])} 小時`)}</td><td><button class="remove" data-action="remove" aria-label="移除此時段">×</button></td></tr>`;
+        return `<tr class="${r.selected && !invalid ? 'selected' : 'off'}" data-id="${esc(r.id)}"><td class="select-cell"><label class="row-select"><input aria-label="選取 ${esc(r.date)} ${esc(r.start)}" aria-describedby="state-${esc(r.id)}" data-field="selected" type="checkbox" ${r.selected ? 'checked' : ''} ${invalid || done ? 'disabled' : ''}><span>${done ? '已完成' : invalid ? '不可填' : r.selected ? '已勾選' : '未勾選'}</span></label></td><td class="date-cell"><input aria-label="日期" data-field="date" type="date" min="${week}" max="${C.addDays(week, 6)}" value="${esc(r.date)}"><span class="day">${esc(weekday(r.date))}</span></td><td class="time-cell"><span class="mobile-label">開始時間</span><input aria-label="開始時間" data-field="start" type="text" inputmode="numeric" placeholder="HH:mm" maxlength="5" value="${esc(r.start)}"></td><td class="time-cell"><span class="mobile-label">結束時間</span><input aria-label="結束時間" data-field="end" type="text" inputmode="numeric" placeholder="HH:mm" maxlength="5" value="${esc(r.end)}"></td><td id="state-${esc(r.id)}" class="state ${r.result ? done ? 'good' : 'bad' : invalid ? 'bad' : ''}">${esc(r.result || invalid || `${hours([r])} 小時`)}</td><td class="remove-cell"><button class="remove" data-action="remove" aria-label="移除此時段">×</button></td></tr>`;
       }).join('')}</tbody></table></div>
-      <p class="hint">12:00 為中午（12 PM）；13:00 為下午 1 點。今天即使時間未到也可填寫，明天以後不可填寫（依台北日期）。請假選擇只影響該週，範本只儲存固定時程。</p>
-      <div class="note ${message.startsWith('錯誤') ? 'error' : ''}" role="status" aria-live="polite">${esc(message || storageWarning)}</div>
-      ${review ? `<section class="review"><h2>確認這次要填寫的紀錄</h2><p>${esc(settings.title)} ／ ${esc(team?.teamName)} ／ ${esc(settings.type)}${settings.description ? ` ／ 備註：${esc(settings.description)}` : ''}</p><ul>${review.map(r => `<li class="${r.ready ? '' : 'skip'}">${esc(r.date)} ${esc(weekday(r.date))} ${r.start}–${r.end}　${r.ready ? '可送出' : '略過：' + esc(r.reason)}</li>`).join('')}</ul><p>將新增 ${review.filter(r => r.ready).length} 筆，共 ${hours(review.filter(r => r.ready))} 小時。送出時會再次查核現有紀錄。</p><div class="actions"><button data-action="back">返回修改</button><button class="primary" data-action="submit" ${!review.some(r => r.ready) ? 'disabled' : ''}>確認送出 ${review.filter(r => r.ready).length} 筆</button></div></section>` : ''}
-      </main><footer><div><span class="total">${hours(selected)} <small>小時</small></span><span class="count">已勾選 ${selected.length} 筆</span></div><div class="actions"><button data-action="reload">重新連線</button><button class="primary" data-action="review" ${!loaded || !selected.length || !settings.title?.trim() || !settings.teamID || !settings.type ? 'disabled' : ''}>${busy ? '處理中…' : '檢查紀錄並預覽'}</button></div></footer>`;
-    dialog.querySelector('main').scrollTop = previousScroll;
-    if (review && !busy) dialog.querySelector('.review').scrollIntoView({ block: 'nearest' });
+      ${rows.length ? '' : '<p class="note">這週還沒有時段，可套用固定範本或新增自訂時段。</p>'}
+      <p class="hint time-rule">今天可提前填，明天以後不可填。12:00 是中午；13:00 是下午 1 點。請假勾選只影響這一週。</p>
+      <details id="templateTools" class="template-tools" ${templateOpen ? 'open' : ''}><summary>套用或儲存時程範本</summary><div class="template-body"><input id="templateName" placeholder="新範本名稱" aria-label="新範本名稱" maxlength="40"><button data-action="saveTemplate">儲存時程為範本</button><p class="hint">儲存上方所有時段，不包含當週的請假勾選。</p></div></details></section>`}
+      ${!prominentMessage && (message || storageWarning) ? `<div class="note" role="status" aria-live="polite">${esc(message || storageWarning)}</div>` : ''}
+      </main><footer><div><span class="total">${hours(review ? ready : selected)} <small>小時</small></span><span class="count">${review ? '將新增' : '已勾選'} ${review ? ready.length : selected.length} 筆</span></div><div class="actions">${review ? `<button data-action="back">返回修改</button><button class="primary" data-action="submit" ${!ready.length ? 'disabled' : ''}>${busy ? '處理中…' : `確認送出 ${ready.length} 筆`}</button>` : `<button data-action="reload">重新連線</button><button class="primary" data-action="review" ${!loaded || !selected.length || !settings.title?.trim() || !settings.teamID || !settings.type ? 'disabled' : ''}>${busy ? '處理中…' : '檢查紀錄並預覽'}</button>`}</div></footer>`;
+    positionTemplatePicker();
+    dialog.querySelector('main').scrollTop = previousReview !== !!review ? 0 : previousScroll;
     if (busy) dialog.querySelectorAll('button,input,select').forEach(el => el.disabled = true);
+    else if (focusRow && focusField) {
+      const row = Array.from(dialog.querySelectorAll('[data-id]')).find(el => el.dataset.id === focusRow);
+      const input = row?.querySelector(`[data-field="${focusField}"]`);
+      if (input && !input.disabled) input.focus({ preventScroll: true });
+    }
+  }
+  // Keep inputs and action buttons mounted when an edit blurs. Replacing the
+  // dialog here would swallow the user's following click on Preview or Add.
+  function refreshFeedback() {
+    for (const tr of dialog.querySelectorAll('tbody tr')) {
+      const row = rows.find(r => r.id === tr.dataset.id);
+      const invalid = C.validate(row, week), done = row.result === '已送出並確認';
+      tr.className = row.selected && !invalid ? 'selected' : 'off';
+      const checkbox = tr.querySelector('[data-field="selected"]');
+      checkbox.checked = row.selected;
+      checkbox.disabled = !!invalid || done;
+      checkbox.setAttribute('aria-label', `選取 ${row.date} ${row.start}`);
+      tr.querySelector('.row-select span').textContent = done ? '已完成' : invalid ? '不可填' : row.selected ? '已勾選' : '未勾選';
+      tr.querySelector('.day').textContent = C.validDate(row.date) ? weekday(row.date) : '請選擇日期';
+      const state = tr.querySelector('.state');
+      state.textContent = row.result || invalid || `${hours([row])} 小時`;
+      state.className = `state ${row.result ? done ? 'good' : 'bad' : invalid ? 'bad' : ''}`;
+    }
+    for (const button of dialog.querySelectorAll('[data-action="leave"]')) {
+      button.hidden = !rows.some(row => new Date(row.date + 'T00:00:00Z').getUTCDay() === Number(button.dataset.day));
+    }
+    const team = teams.find(t => String(t.teamID) === String(settings.teamID));
+    dialog.querySelector('.summary-value').textContent = `${settings.title || '請填標題'} ／ ${team?.teamName || '請選擇組別'} ／ ${settings.type || '請選擇類型'}${settings.description ? '（含備註）' : ''}`;
+    const selected = rows.filter(r => r.selected && !C.validate(r, week));
+    dialog.querySelector('.total').innerHTML = `${hours(selected)} <small>小時</small>`;
+    dialog.querySelector('.count').textContent = `已勾選 ${selected.length} 筆`;
+    const previewButton = dialog.querySelector('[data-action="review"]');
+    if (previewButton) previewButton.disabled = !loaded || !selected.length || !settings.title?.trim() || !settings.teamID || !settings.type;
   }
   async function connect() {
     busy = true; message = '正在確認登入、讀取組別與類型…'; render();
@@ -106,10 +164,19 @@
     else if (el.id === 'template' && el.value) {
       try { rows = C.expand(C.template(el.value === '__default' ? C.defaults : templates[el.value]), week); message = '已套用範本，請依這週實際出勤勾選。'; } catch (error) { message = '錯誤：' + error.message; }
     } else return;
-    invalidate(); render();
+    const keepMounted = !dialog.querySelector('.review') && ((tr && el.dataset.field !== 'selected') || ['title', 'description'].includes(el.id));
+    invalidate();
+    if (keepMounted) refreshFeedback(); else render();
   });
   dialog.addEventListener('click', async event => {
-    const button = event.target.closest('button[data-action]'); if (!button || busy) return;
+    if (busy) { event.preventDefault(); return; }
+    const clickedRow = event.target.closest('[data-id]');
+    if (clickedRow && !event.target.closest('button,input,label,select,.time-cell,.date-cell')) {
+      const checkbox = clickedRow.querySelector('input[type="checkbox"]');
+      if (!checkbox.disabled) checkbox.click();
+      return;
+    }
+    const button = event.target.closest('button[data-action]'); if (!button) return;
     const action = button.dataset.action;
     if (action === 'close') { dialog.close(); launch.focus(); return; }
     if (action === 'reload') { review = null; await connect(); return; }
